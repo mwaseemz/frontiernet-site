@@ -31,10 +31,34 @@
       for (var i = 0; i < links.length; i++) { links[i].setAttribute('href', 'tel:' + mobile_number); }
     }
   });
+  // Our own log (the "Call taps" tab of the Home Fiber Check Leads Sheet) of ad visits and call-button taps, the same
+  // Apps Script endpoint homefibercheck.live uses. Google only reports a website call when its forwarding number had
+  // already replaced ours at the moment of the tap.
+  var LOG_ENDPOINT = 'https://script.google.com/macros/s/AKfycbzitChhtPrnp4EhSJkoOEisLz3gxV9ittmvaFe0qMCtMxXygvwjadlZU2kOcQav22kq/exec';
+  function clickId() {
+    var m = location.search.match(/[?&](gclid|gbraid|wbraid)=([^&]+)/);
+    if (m) { try { sessionStorage.setItem('fn_click', m[1] + ':' + decodeURIComponent(m[2])); } catch (e) {} return m[1] + ':' + decodeURIComponent(m[2]); }
+    try { return sessionStorage.getItem('fn_click') || ''; } catch (e) { return ''; }
+  }
+  function log(kind, extra) {
+    if (!window.fetch || !window.URLSearchParams) return;
+    try {
+      var body = new URLSearchParams({ kind: kind, provider: 'Frontier', page: location.origin + location.pathname,
+        gclid: clickId(), ua: navigator.userAgent.slice(0, 180) });
+      for (var k in (extra || {})) body.append(k, extra[k]);
+      fetch(LOG_ENDPOINT, { method: 'POST', mode: 'no-cors', body: body, keepalive: true }).catch(function () {});
+    } catch (e) {}
+  }
+  if (/[?&](gclid|gbraid|wbraid)=/.test(location.search)) {
+    try { if (!sessionStorage.getItem('fn_visit')) { sessionStorage.setItem('fn_visit', '1'); log('visit'); } } catch (e) { log('visit'); }
+  }
   // "Tap to call (website)": fires on every tel: click
   document.addEventListener('click', function (e) {
     var a = e.target && e.target.closest ? e.target.closest('a[href^="tel:"]') : null;
-    if (a) { gtag('event', 'conversion', { 'send_to': AW_ID + '/VBbuCP2604IdEPK1n9pE' }); }
+    if (!a) return;
+    gtag('event', 'conversion', { 'send_to': AW_ID + '/VBbuCP2604IdEPK1n9pE' });
+    var dialed = (a.getAttribute('href') || '').replace(/\D/g, '').slice(-10);
+    log('tap', { dialed: dialed, swapped: dialed === '8887253056' ? 'no' : 'yes' });
   }, true);
 </script>
 
